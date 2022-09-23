@@ -8,42 +8,275 @@
 #'
 #' devtools::install_github("l-gorman/rhomis-R-package")
 
-
-
+#---------------------------------------------------------------
+#---------------------------------------------------------------
+#---------------------------------------------------------------
 # (1) LOAD IN DATA
-
+#---------------------------------------------------------------
+#---------------------------------------------------------------
+#---------------------------------------------------------------
 library(rhomis)
 
 # Use these file paths to load your preprocessed data
 base_path <- "./inst/projects/tree-aid-example/rhomis-2/" # Leo
-data_path <- "raw-data/"
+data_path <- "raw-data/raw-data.csv"
 
 # base_path <- "RHoMIS/package/"                            # Gemma
 # data_path <- "dummy_cleaned_lower_case.csv"
 
 # Read in data
-tree_aid_df <- readr::read_csv(paste0(base_path,data_path), na = c("-999", "n/a", "NA", "na"))
 
+units_and_conversions <- extract_units_and_conversions_csv(
+    base_path = base_path,
+    file_path="inst/projects/tree-aid-example/rhomis-2/preprocessed_data.csv",
+    id_type = "string",
+    proj_id = "tree-aid",
+    form_id = "gh6")
 
+tree_aid_df <- load_rhomis_csv(
 
-# (2) UNITS CONVERSION
-
-# Example on how you would find all new units in a dataset
-number_of_fp_loops <- find_number_of_loops(tree_aid_df,"fp_name") #
-fp_amount_units <- extract_new_values(data = tree_aid_df,
-                                      loop_or_individual_column = "loop",
-                                      column_pattern = "fruit_amount_units",
-                                      number_of_loops = number_of_fp_loops
+    file_path = paste0(base_path,data_path),
+    id_type = "string",
+    proj_id = "tree-aid",
+    form_id = "gh6"
 )
 
-# Example of how to construct a table of conversion factors from that table
-fp_amount_conversions <- tibble::as_tibble(
-    list(
-        survey_value=c("bundle_20kg", "kg", "tine_20kg","calabash_5litres"),
-        conversion=c(20,1, 20, 5)
+#---------------------------------------------------------------
+#---------------------------------------------------------------
+#---------------------------------------------------------------
+# (2) Defining all NTFPs in a list that can be used later
+#---------------------------------------------------------------
+#---------------------------------------------------------------
+#---------------------------------------------------------------
+fp_products <- list(
+
+    fruit=list(
+        base_name="fruit",
+        fp_name = "fp_name",
+
+        #Info needed for fruit calculations
+        amount = "fruit_amount",
+        amount_units = "fruit_amount_units",
+        amount_units_other = "fruit_amount_units_other",
+
+        # Info needed for proportions calculations
+        use_column = "fruit_use",
+        sold_prop_column = "fruit_sold_prop",
+        consumed_column = "fruit_eaten_prop",
+        processed_column = "fruit_process_prop",
+
+        income_column = "fruit_sold_income",
+        income_frequency = "fruit_sold_frequency",
+        sold_frequency_other_column = "fruit_sold_amount_units_other",
+
+        consume_gender="fruit_control_eating",
+        sell_gender="fruit_who_sell",
+        sell_income_gender="fruit_sold_income_who",
+
+
+        processed_sold_column = "fruit_process_sold_prop",
+        processed_eaten_column = "fruit_process_eaten_prop",
+
+        process_sold_income_column = "fruit_process_sold_income",
+        process_sold_frequency_column = "fruit_process_sold_frequency",
+        process_sold_frequency_other_column = "fruit_process_sold_amount_units_other"
+    ),
+
+    nut=list(
+        fp_name = "fp_name",
+        base_name="nut",
+
+        #Info needed for nut calculations
+        amount = "nut_amount",
+        amount_units = "nut_amount_units",
+        amount_units_other = "nut_amount_units_other",
+
+        # Info needed for proportions calculations
+        use_column = "nut_use",
+        sold_prop_column = "nut_sold_prop",
+        consumed_column = "nut_eaten_prop",
+        processed_column = "nut_process_prop",
+
+        income_column = "nut_sold_income",
+        income_frequency = "nut_sold_frequency",
+        sold_frequency_other_column = "nut_sold_amount_units_other",
+
+        consume_gender="nut_control_eating",
+        sell_gender="nut_who_sell",
+        sell_income_gender="nut_sold_income_who",
+
+        processed_sold_column = "nut_process_sold_prop",
+        processed_eaten_column = "nut_process_eaten_prop",
+
+        process_sold_income_column = "nut_process_sold_income",
+        process_sold_frequency_column = "nut_process_sold_frequency",
+        process_sold_frequency_other_column = "nut_process_sold_amount_units_other"
+    ),
+
+    # Shea butter seems to be a special case
+    shea_butter=list(
+        fp_name = "fp_name",
+        base_name="shea_butter",
+
+        #Info needed for shea_butter calculations
+        amount = "shea_butter_amount",
+        amount_units = "shea_butter_amount_units",
+        amount_units_other = "shea_butter_amount_units_other",
+
+        # Info needed for proportions calculations
+        use_column = "shea_butter_use",
+        sold_prop_column = "shea_butter_sold",
+        consumed_column = "shea_butter_consume",
+        processed_column = "shea_butter_process_prop",
+
+        income_column = "shea_butter_sold_income_per_freq",
+        income_frequency = "shea_butter_sold_frequency",
+        sold_frequency_other_column = "shea_butter_sold_amount_units_other",
+
+        consume_gender=NULL,
+        sell_gender="shea_butter_control_sell",
+        sell_income_gender="shea_butter_sold_income_who",
+
+        processed_sold_column = NULL,
+        processed_eaten_column = NULL,
+
+        process_sold_income_column = NULL,
+        process_sold_frequency_column = NULL,
+        process_sold_frequency_other_column = NULL
+    ),
+    leaves=list(
+        fp_name = "fp_name",
+        base_name="leaves",
+
+        #Info needed for leaves calculations
+        amount = "leaves_amount",
+        amount_units = "leaves_amount_units",
+        amount_units_other = "leaves_amount_units_other",
+
+        # Info needed for proportions calculations
+        use_column = "leaves_use",
+        sold_prop_column = "leaves_sold_prop",
+        consumed_column = "leaves_consumed_prop",
+        processed_column = "leaves_process_prop",
+
+        income_column = "leaves_sold_income",
+        income_frequency = "leaves_sold_price_quantityunits",
+        sold_frequency_other_column = "leaves_sold_amount_units_other",
+
+        consume_gender="leaves_control_eating",
+        sell_gender="leaves_who_sell",
+        sell_income_gender="leaves_sold_income_who",
+
+        processed_sold_column = "leaves_process_sold_prop",
+        processed_eaten_column = "leaves_process_eaten_prop",
+
+        process_sold_income_column = "leaves_process_income",
+        process_sold_frequency_column = "leaves_process_sold_price_quantityunits",
+        process_sold_frequency_other_column = "leaves_process_amount_units_other"
+    ),
+    bark=list(
+        fp_name = "fp_name",
+        base_name="bark",
+
+        #Info needed for bark calculations
+        amount = "bark_amount",
+        amount_units = "bark_amount_units",
+        amount_units_other = "bark_amount_units_other",
+
+        # Info needed for proportions calculations
+        use_column = "bark_use",
+        sold_prop_column = "bark_sold_prop",
+        consumed_column = "bark_eaten_prop",
+        processed_column = "bark_process_prop",
+
+        income_column = "bark_sold_income",
+        income_frequency = "bark_sold_price_quantityunits",
+        sold_frequency_other_column = "bark_sold_amount_units_other",
+
+        consume_gender="bark_control_eating",
+        sell_gender="bark_who_sell",
+        sell_income_gender="bark_sold_income_who",
+
+        processed_sold_column = "bark_process_sold_prop",
+        processed_eaten_column = "bark_process_eaten_prop",
+
+        process_sold_income_column = "bark_process_income",
+        process_sold_frequency_column = "bark_process_sold_price_quantityunits",
+        process_sold_frequency_other_column = "bark_process_amount_units_other"
+    ),
+
+    roots=list(
+        fp_name = "fp_name",
+        base_name="roots",
+
+        #Info needed for bark calculations
+        amount = "roots_amount",
+        amount_units = "roots_amount_units",
+        amount_units_other = "roots_amount_units_other",
+
+        # Info needed for proportions calculations
+        use_column = "roots_use",
+        sold_prop_column = "roots_sold_prop",
+        consumed_column = "roots_eaten_prop",
+        processed_column = "roots_process_prop",
+
+        income_column = "roots_sold_income",
+        income_frequency = "roots_sold_price_quantityunits",
+        sold_frequency_other_column = "roots_sold_amount_units_other",
+
+        consume_gender="roots_control_eating",
+        sell_gender="roots_who_sell",
+        sell_income_gender="roots_sold_income_who",
+
+        processed_sold_column = "roots_process_sold_prop",
+        processed_eaten_column = "roots_process_eaten_prop",
+
+        process_sold_income_column = "roots_process_income",
+        process_sold_frequency_column = "roots_process_sold_price_quantityunits",
+        process_sold_frequency_other_column = "roots_process_amount_units_other"
+    ),
+
+    gum=list(
+        fp_name = "fp_name",
+        base_name="gum",
+
+        #Info needed for bark calculations
+        amount = "gum_amount",
+        amount_units = "gum_amount_units",
+        amount_units_other = "gum_amount_units_other",
+
+        # Info needed for proportions calculations
+        use_column = "gum_use",
+        sold_prop_column = "gum_sold_prop",
+        consumed_column = "gum_eaten_prop",
+        processed_column = "gum_process_prop",
+
+        income_column = "gum_sold_income_weekly",
+        income_frequency = "gum_sold_price_quantityunits",
+        sold_frequency_other_column = "gum_sold_amount_units_other",
+
+        consume_gender="gum_control_eating",
+        sell_gender="gum_who_sell",
+        sell_income_gender="gum_sold_income_who",
+
+        processed_sold_column = "gum_process_sold_prop",
+        processed_eaten_column = "gum_process_eaten_prop",
+
+        process_sold_income_column = "gum_process_income",
+        process_sold_frequency_column = "gum_process_sold_price_quantityunits",
+        process_sold_frequency_other_column = "gum_process_amount_units_other"
     )
+
+
 )
 
+#---------------------------------------------------------------
+#---------------------------------------------------------------
+#---------------------------------------------------------------
+# (3) UNITS CONVERSION FUNCTION
+#---------------------------------------------------------------
+#---------------------------------------------------------------
+#---------------------------------------------------------------
 # Example function to convert units
 convert_units <- function(
         unit_data,
@@ -77,9 +310,13 @@ convert_units <- function(
 }
 
 
-
-# (3) YIELD
-
+#---------------------------------------------------------------
+#---------------------------------------------------------------
+#---------------------------------------------------------------
+# (4) YIELD FUNCTION
+#---------------------------------------------------------------
+#---------------------------------------------------------------
+#---------------------------------------------------------------
 # Example of calculating fruit harvested
 calculate_fp_harvest <- function(
         tree_aid_df,
@@ -98,7 +335,7 @@ calculate_fp_harvest <- function(
 
     # If the columns are missing, simply return the dataset
     if (length(missing_columns)!=0){
-        return(NULL)
+        return(tree_aid_df)
     }
 
 
@@ -138,77 +375,14 @@ calculate_fp_harvest <- function(
 
 }
 
-# Apply the NTFP yield function to all 6 forest product types
-# (fruit, nut, leaves, bark, roots, gum)
 
-# fruit
-tree_aid_df <- calculate_fp_harvest(
-    tree_aid_df=tree_aid_df,
-    fp_harvest_conversions=fp_amount_conversions,
-    name_column="fp_name",
-    amount_column="fruit_amount",
-    unit_column="fruit_amount_units"
-)
-
-# nut
-tree_aid_df  <- calculate_fp_harvest(
-    tree_aid_df=tree_aid_df,
-    fp_harvest_conversions=fp_amount_conversions,
-    name_column="fp_name",
-    amount_column="nut_amount",
-    unit_column="nut_amount_units"
-)
-
-# leaves
-tree_aid_df <- calculate_fp_harvest(
-    tree_aid_df=tree_aid_df,
-    fp_harvest_conversions=fp_amount_conversions,
-    name_column="fp_name",
-    amount_column="leaves_amount",
-    unit_column="leaves_amount_units"
-)
-
-# bark
-tree_aid_df <- calculate_fp_harvest(
-    tree_aid_df=tree_aid_df,
-    fp_harvest_conversions=fp_amount_conversions,
-    name_column="fp_name",
-    amount_column="bark_amount",
-    unit_column="bark_amount_units"
-)
-
-# roots
-tree_aid_df <- calculate_fp_harvest(
-    tree_aid_df=tree_aid_df,
-    fp_harvest_conversions=fp_amount_conversions,
-    name_column="fp_name",
-    amount_column="roots_amount",
-    unit_column="roots_amount_units"
-)
-
-# gum
-tree_aid_df <- calculate_fp_harvest(
-    tree_aid_df=tree_aid_df,
-    fp_harvest_conversions=fp_amount_conversions,
-    name_column="fp_name",
-    amount_column="gum_amount",
-    unit_column="gum_amount_units"
-)
-
-# shea
-# tree_aid_df <- calculate_fp_harvest(
-#     tree_aid_df=tree_aid_df,
-#     fp_harvest_conversions=fp_amount_conversions,
-#     name_column="fp_name",
-#     amount_column="shea_butter_amount",
-#     unit_column="shea_butter_amount_units"
-# )
-
-
-
-# (4a) PROPORTIONS SOLD
-
-# Loop proportions sold calculation
+#---------------------------------------------------------------
+#---------------------------------------------------------------
+#---------------------------------------------------------------
+# (5) Numeric proportions
+#---------------------------------------------------------------
+#---------------------------------------------------------------
+#---------------------------------------------------------------
 fp_proportions_all <-  function(
         tree_aid_df,
         use,
@@ -247,338 +421,35 @@ fp_proportions_all <-  function(
     return(tree_aid_df)
 }
 
-# Sold proportion columns
-# fruit
-tree_aid_df <- fp_proportions_all(
-    tree_aid_df,
-    use="sell",
-    use_column="fruit_use",
-    prop_column="fruit_sold_prop",
-    new_column_name="fruit_sold_prop_numeric"
-)
-
-# nut
-tree_aid_df <- fp_proportions_all(
-    tree_aid_df,
-    use="sell",
-    use_column="nut_use",
-    prop_column="nut_sold_prop",
-    new_column_name="nut_sold_prop_numeric"
-)
-
-# leaves
-tree_aid_df <- fp_proportions_all(
-    tree_aid_df,
-    use="sell",
-    use_column="leaves_use",
-    prop_column="leaves_sold_prop",
-    new_column_name="leaves_sold_prop_numeric"
-)
-
-# bark
-tree_aid_df <- fp_proportions_all(
-    tree_aid_df,
-    use="sell",
-    use_column="bark_use",
-    prop_column="bark_sold_prop",
-    new_column_name="bark_sold_prop_numeric"
-)
-
-# roots
-tree_aid_df <- fp_proportions_all(
-    tree_aid_df,
-    use="sell",
-    use_column="roots_use",
-    prop_column="roots_sold_prop",
-    new_column_name="roots_sold_prop_numeric"
-)
-
-# gum
-tree_aid_df <- fp_proportions_all(
-    tree_aid_df,
-    use="sell",
-    use_column="gum_use",
-    prop_column="gum_sold_prop",
-    new_column_name="gum_sold_prop_numeric"
-)
-
-# shea
-# honey
-
-
-
-# (4b) PROPORTIONS EATEN / CONSUMED
-
-# Eat proportion columns
-# fruit
-tree_aid_df <- fp_proportions_all(
-    tree_aid_df,
-    use="eat",
-    use_column="fruit_use",
-    prop_column="fruit_eaten_prop",
-    new_column_name="fruit_eaten_prop_numeric"
-)
-
-# nut
-tree_aid_df <- fp_proportions_all(
-    tree_aid_df,
-    use="eat",
-    use_column="nut_use",
-    prop_column="nut_eaten_prop",
-    new_column_name="nut_eaten_prop_numeric"
-)
-
-# leaves
-tree_aid_df <- fp_proportions_all(
-    tree_aid_df,
-    use="eat",
-    use_column="leaves_use",
-    prop_column="leaves_consumed_prop",
-    new_column_name="leaves_consumed_prop_numeric"
-)
-
-# bark
-tree_aid_df <- fp_proportions_all(
-    tree_aid_df,
-    use="eat",
-    use_column="bark_use",
-    prop_column="bark_eaten_prop",
-    new_column_name="bark_eaten_prop_numeric"
-)
-
-# roots
-tree_aid_df <- fp_proportions_all(
-    tree_aid_df,
-    use="eat",
-    use_column="roots_use",
-    prop_column="roots_eaten_prop",
-    new_column_name="roots_eaten_prop_numeric"
-)
-
-# gum
-tree_aid_df <- fp_proportions_all(
-    tree_aid_df,
-    use="eat",
-    use_column="gum_use",
-    prop_column="gum_eaten_prop",
-    new_column_name="gum_eaten_prop_numeric"
-)
-
-# shea
-# honey
-
-
-
-
-# (4c) PROPORTIONS PROCESSED (HIGH LEVEL)
-
-# High level processed proportion columns
-# fruit
-tree_aid_df <- fp_proportions_all(
-  tree_aid_df,
-  use="process",
-  use_column="fruit_use",
-  prop_column="fruit_process_prop",
-  new_column_name="fruit_process_prop_numeric"
-)
-
-# nut
-tree_aid_df <- fp_proportions_all(
-  tree_aid_df,
-  use="process",
-  use_column="nut_use",
-  prop_column="nut_process_prop",
-  new_column_name="nut_process_prop_numeric"
-)
-
-# leaves
-tree_aid_df <- fp_proportions_all(
-  tree_aid_df,
-  use="process",
-  use_column="leaves_use",
-  prop_column="leaves_process_prop",
-  new_column_name="leaves_process_prop_numeric"
-)
-
-# bark
-tree_aid_df <- fp_proportions_all(
-  tree_aid_df,
-  use="process",
-  use_column="bark_use",
-  prop_column="bark_process_prop",
-  new_column_name="bark_process_prop_numeric"
-)
-
-# roots
-tree_aid_df <- fp_proportions_all(
-  tree_aid_df,
-  use="process",
-  use_column="roots_use",
-  prop_column="roots_process_prop",
-  new_column_name="roots_process_prop_numeric"
-)
-
-# gum
-tree_aid_df <- fp_proportions_all(
-  tree_aid_df,
-  use="process",
-  use_column="gum_use",
-  prop_column="gum_process_prop",
-  new_column_name="gum_process_prop_numeric"
-)
-
-# shea
-# honey
-
-
-
-# (4d) PROPORTIONS PROCESSED SOLD
-
-# Sold processed proportion columns
-# fruit
-tree_aid_df <- fp_proportions_all(
-    tree_aid_df,
-    use="process",
-    use_column="fruit_use",
-    prop_column="fruit_process_sold_prop",
-    new_column_name="fruit_process_sold_prop_numeric"
-)
-
-# nut
-tree_aid_df <- fp_proportions_all(
-    tree_aid_df,
-    use="process",
-    use_column="nut_use",
-    prop_column="nut_process_sold_prop",
-    new_column_name="nut_process_sold_prop_numeric"
-)
-
-# leaves
-tree_aid_df <- fp_proportions_all(
-    tree_aid_df,
-    use="process",
-    use_column="leaves_use",
-    prop_column="leaves_process_sold_prop",
-    new_column_name="leaves_process_sold_prop_numeric"
-)
-
-# bark
-tree_aid_df <- fp_proportions_all(
-    tree_aid_df,
-    use="process",
-    use_column="bark_use",
-    prop_column="bark_process_sold_prop",
-    new_column_name="bark_process_sold_prop_numeric"
-)
-
-# roots
-tree_aid_df <- fp_proportions_all(
-    tree_aid_df,
-    use="process",
-    use_column="roots_use",
-    prop_column="roots_process_sold_prop",
-    new_column_name="roots_process_sold_prop_numeric"
-)
-
-# gum
-tree_aid_df <- fp_proportions_all(
-    tree_aid_df,
-    use="process",
-    use_column="gum_use",
-    prop_column="gum_process_sold_prop",
-    new_column_name="gum_process_sold_prop_numeric"
-)
-
-# shea
-# honey
-
-
-
-# (4e) PROPORTIONS PROCESSED EATEN / CONSUMED
-
-# Consumed/eaten processed proportion columns
-# fruit
-tree_aid_df <- fp_proportions_all(
-    tree_aid_df,
-    use="process",
-    use_column="fruit_use",
-    prop_column="fruit_process_eaten_prop",
-    new_column_name="fruit_process_eaten_prop_numeric"
-)
-
-# nut
-tree_aid_df <- fp_proportions_all(
-    tree_aid_df,
-    use="process",
-    use_column="nut_use",
-    prop_column="nut_process_eaten_prop",
-    new_column_name="nut_process_eaten_prop_numeric"
-)
-
-# leaves
-tree_aid_df <- fp_proportions_all(
-    tree_aid_df,
-    use="process",
-    use_column="leaves_use",
-    prop_column="leaves_process_consumed_prop",
-    new_column_name="leaves_process_consumed_prop_numeric"
-)
-
-# bark
-tree_aid_df <- fp_proportions_all(
-    tree_aid_df,
-    use="process",
-    use_column="bark_use",
-    prop_column="bark_process_eaten_prop",
-    new_column_name="bark_process_eaten_prop_numeric"
-)
-
-# roots
-tree_aid_df <- fp_proportions_all(
-    tree_aid_df,
-    use="process",
-    use_column="roots_use",
-    prop_column="roots_process_eaten_prop",
-    new_column_name="roots_process_eaten_prop_numeric"
-)
-
-# gum
-tree_aid_df <- fp_proportions_all(
-    tree_aid_df,
-    use="process",
-    use_column="gum_use",
-    prop_column="gum_process_eaten_prop",
-    new_column_name="gum_process_eaten_prop_numeric"
-)
-
-# shea
-# honey
-
-
-
-# (5) END CALCULATION AMOUNT EATEN AND SOLD
-
+#---------------------------------------------------------------
+#---------------------------------------------------------------
+#---------------------------------------------------------------
+# (6) CALCULATION AMOUNT EATEN AND SOLD
+#---------------------------------------------------------------
+#---------------------------------------------------------------
+#---------------------------------------------------------------
 # Create function that calculated amount eaten and sold for both processed and unprocessed ntfps
 ntfp_sold_and_consumed_calculation <- function(
 
-        data,
-        fp_harvest_kg,
+    data,
+    fp_harvest_kg,
 
-        fp_prop_sold_numeric,
-        fp_amount_sold_kg,
+    fp_prop_sold_numeric,
+    fp_amount_sold_kg,
 
-        fp_prop_consumed_numeric,
-        fp_amount_consumed_kg,
+    fp_prop_consumed_numeric,
+    fp_amount_consumed_kg,
 
 
 
-        fp_props_process_numeric,
+    fp_props_process_numeric,
+    fp_amount_process_kg,
 
-        fp_props_process_sold_numeric,
-        fp_amount_process_sold_kg,
+    fp_props_process_sold_numeric,
+    fp_amount_process_sold_kg,
 
-        fp_prop_process_consumed_numeric,
-        fp_amount_process_consumed_kg
+    fp_prop_process_consumed_numeric,
+    fp_amount_process_consumed_kg
 ) {
     # NON-PROCESSED COLUMNS
     # Beginning with ntfp sold
@@ -587,33 +458,41 @@ ntfp_sold_and_consumed_calculation <- function(
     sold_columns <- paste0(fp_prop_sold_numeric, "_", c(1:number_of_loops))
 
     if (all(harvested_columns %in% colnames(data)) == F) {
-        stop("Have not calculated the amounts harvested in kg. Calculate amounts harvested before calculating amounts sold")
+        warning(paste0("Missing Columns:",harvested_columns,". Calculate amounts harvested before calculating amounts sold\n"))
     }
     if (all(sold_columns %in% colnames(data)) == F) {
-        stop("Have not calculated the numeric proportions of amount of non-timber forest products sold. Calculate proportions sold before calculating amounts sold")
+        warning(paste0("Missing Columns:",sold_columns,". Have not calculated the numeric proportions of amount of non-timber forest products sold. Calculate proportions sold before calculating amounts sold\n"))
     }
 
-    harvest_data <- data[harvested_columns]
-    sold_prop_data <- data[sold_columns]
+    if (all(harvested_columns %in% colnames(data)) == T & all(sold_columns %in% colnames(data)) == T) {
 
-    amount_sold_kg <- tibble::as_tibble(harvest_data * sold_prop_data)
-    colnames(amount_sold_kg) <- paste0(fp_amount_sold_kg, "_", c(1:number_of_loops))
 
-    data <- add_column_after_specific_column(
-        data = data,
-        new_data = amount_sold_kg,
-        new_column_name = fp_amount_sold_kg,
-        old_column_name = fp_prop_sold_numeric,
-        loop_structure = T
-    )
+        harvest_data <- data[harvested_columns]
+        sold_prop_data <- data[sold_columns]
 
-    # Moving on to crops consumed
+        amount_sold_kg <- tibble::as_tibble(harvest_data * sold_prop_data)
+        colnames(amount_sold_kg) <- paste0(fp_amount_sold_kg, "_", c(1:number_of_loops))
+
+        data <- add_column_after_specific_column(
+            data = data,
+            new_data = amount_sold_kg,
+            new_column_name = fp_amount_sold_kg,
+            old_column_name = fp_prop_sold_numeric,
+            loop_structure = T
+        )
+    }
+
+    # Moving on to ntfp consumed
     number_of_loops <- find_number_of_loops(data, name_column = "fp_name")
     harvested_columns <- paste0(fp_harvest_kg, "_", c(1:number_of_loops))
     consumed_columns <- paste0(fp_prop_consumed_numeric, "_", c(1:number_of_loops))
 
-    if (all(harvested_columns %in% colnames(data)) == F | all(consumed_columns %in% colnames(data)) == F) {
-        warning("Have not calculated the amounts harvested in kg or amounts consumed. Calculate amounts harvested before calculating amounts consumed")
+
+    if (all(harvested_columns %in% colnames(data)) == F) {
+        warning(paste0("Missing Columns:",harvested_columns,". Calculate amounts harvested before calculating amounts consumed\n"))
+    }
+    if (all(consumed_columns %in% colnames(data)) == F) {
+        warning(paste0("Missing Columns:",consumed_columns,". Have not calculated the numeric proportions of amount of non-timber forest products consumed Calculate proportions sold before calculating amounts consumed\n"))
     }
     if (all(harvested_columns %in% colnames(data)) == T & all(consumed_columns %in% colnames(data)) == T) {
         harvest_data <- data[harvested_columns]
@@ -636,64 +515,99 @@ ntfp_sold_and_consumed_calculation <- function(
 
 
     # PROCESSED COLUMNS
-    # Beginning with ntfp processed sold
+    # Beginning with ntfp processed
     number_of_loops <- find_number_of_loops(tree_aid_df, name_column = "fp_name")
     harvested_columns <- paste0(fp_harvest_kg, "_", c(1:number_of_loops))
     processed_columns <- paste0(fp_props_process_numeric, "_", c(1:number_of_loops))
-    processed_sold_columns <- paste0(fp_props_process_sold_numeric, "_", c(1:number_of_loops))
 
     if (all(harvested_columns %in% colnames(data)) == F) {
-      stop("Have not calculated the amounts harvested in kg. Calculate amounts harvested before calculating amounts sold")
+        warning(paste0("Missing Columns:",harvested_columns,". Have not calculated the amounts harvested in kg. Calculate amounts harvested before calculating amounts processed\n"))
     }
     if (all(processed_columns %in% colnames(data)) == F) {
-      stop("Have not calculated the numeric proportions of amount of non-timber forest products processed. Calculate proportions processed before calculating amounts processed and sold")
+        warning(paste0("Missing Columns:",processed_columns,". Have not calculated the numeric proportions of amount of non-timber forest products processed. Calculate proportions processed before calculating amounts processed\n"))
     }
+
+
+    if (all(harvested_columns %in% colnames(data)) == T & all(processed_columns %in% colnames(data)) == T) {
+
+        harvest_data <- data[harvested_columns]
+        processed_prop_data <- data[processed_columns]
+
+        amount_processed_kg <- tibble::as_tibble(harvest_data * processed_prop_data)
+        colnames(amount_processed_kg) <- paste0(fp_amount_process_kg, "_", c(1:number_of_loops))
+
+        data <- add_column_after_specific_column(
+            data = data,
+            new_data = amount_processed_kg,
+            new_column_name = fp_amount_process_kg,
+            old_column_name = fp_props_process_numeric,
+            loop_structure = T
+        )
+    }
+
+    # PROCESSED SOLD
+    # Beginning with ntfp processed sold
+    number_of_loops <- find_number_of_loops(tree_aid_df, name_column = "fp_name")
+    processed_columns <- paste0(fp_amount_process_kg, "_", c(1:number_of_loops))
+    processed_sold_columns <- paste0(fp_props_process_sold_numeric, "_", c(1:number_of_loops))
+
+    if (all(processed_columns %in% colnames(data)) == F) {
+        warning(paste0("Missing Columns:",processed_columns,". Have not calculated the amounts processed in kg. Calculate amounts processed before calculating amount of processed ntfp which was sold\n"))
+    }
+
     if (all(processed_sold_columns %in% colnames(data)) == F) {
-      stop("Have not calculated the numeric proportions of amount of non-timber forest products processed and sold. Calculate proportions processed and sold before calculating amounts processed and sold")
+        warning(paste0("Missing Columns:",processed_sold_columns,". Have not calculated the numeric proportions of amount of non-timber forest products processed and sold. Calculate proportions processed and sold before calculating amounts processed and sold\n"))
     }
 
-    harvest_data <- data[harvested_columns]
-    processed_prop_data <- data[processed_columns]
-    processed_sold_prop_data <- data[processed_sold_columns]
+    if (all(processed_columns %in% colnames(data)) == T & all(processed_sold_columns %in% colnames(data)) == T) {
 
-    amount_processed_kg <- tibble::as_tibble(harvest_data * processed_prop_data)
-    amount_processed_sold_kg <- tibble::as_tibble(amount_processed_kg * processed_sold_prop_data)
-    colnames(amount_processed_sold_kg) <- paste0(fp_amount_process_sold_kg, "_", c(1:number_of_loops))
+        processed_data <- data[processed_columns]
+        processed_sold_prop_data <- data[processed_sold_columns]
 
-    data <- add_column_after_specific_column(
-      data = data,
-      new_data = amount_processed_sold_kg,
-      new_column_name = fp_amount_process_sold_kg,
-      old_column_name = fp_props_process_sold_numeric,
-      loop_structure = T
-    )
+        amount_processed_sold_kg <- tibble::as_tibble(processed_data * processed_sold_prop_data)
+        colnames(amount_processed_sold_kg) <- paste0(fp_amount_process_sold_kg, "_", c(1:number_of_loops))
 
-    # Moving on to ntfp processed consumed
-    number_of_loops <- find_number_of_loops(data, name_column = "fp_name")
-    harvested_columns <- paste0(fp_harvest_kg, "_", c(1:number_of_loops))
-    processed_columns <- paste0(fp_props_process_numeric, "_", c(1:number_of_loops))
+        data <- add_column_after_specific_column(
+            data = data,
+            new_data = amount_processed_sold_kg,
+            new_column_name = fp_amount_process_sold_kg,
+            old_column_name = fp_props_process_sold_numeric,
+            loop_structure = T
+        )
+    }
+
+
+    # PROCESSED CONSUMED
+    # Beginning with ntfp processed sold
+    number_of_loops <- find_number_of_loops(tree_aid_df, name_column = "fp_name")
+    processed_columns <- paste0(fp_amount_process_kg, "_", c(1:number_of_loops))
     processed_consumed_columns <- paste0(fp_prop_process_consumed_numeric, "_", c(1:number_of_loops))
 
-    if (all(harvested_columns %in% colnames(data)) == F | all(processed_columns %in% colnames(data)) == F) {
-      warning("Have not calculated the amounts harvested in kg or amounts processed. Calculate amounts harvested before calculating amounts processed and consumed")
+    if (all(processed_columns %in% colnames(data)) == F) {
+        warning(paste0("Missing Columns:",processed_columns,". Have not calculated the amounts processed in kg. Calculate amounts processed before calculating amount of processed ntfp which was consumed\n"))
     }
-    if (all(harvested_columns %in% colnames(data)) == T & all(consumed_columns %in% colnames(data)) == T) {
-      harvest_data <- data[harvested_columns]
-      processed_prop_data <- data[processed_columns]
-      processed_consumed_prop_data <- data[processed_consumed_columns]
 
-      amount_processed_kg <- tibble::as_tibble(harvest_data * processed_prop_data)
-      amount_processed_consumed_kg <- tibble::as_tibble(amount_processed_kg * processed_consumed_prop_data)
-      colnames(amount_processed_consumed_kg) <- paste0(fp_amount_process_consumed_kg, "_", c(1:number_of_loops))
-
-      data <- add_column_after_specific_column(
-        data = data,
-        new_data = amount_processed_consumed_kg,
-        new_column_name = fp_amount_process_consumed_kg,
-        old_column_name = fp_prop_processed_consumed_numeric,
-        loop_structure = T
-      )
+    if (all(processed_consumed_columns %in% colnames(data)) == F) {
+        warning(paste0("Missing Columns:",processed_consumed_columns,". Have not calculated the numeric proportions of amount of non-timber forest products processed and consumed Calculate proportions processed and consumed before calculating amounts processed and sold\n"))
     }
+
+    if (all(processed_columns %in% colnames(data)) == T & all(processed_consumed_columns %in% colnames(data)) == T) {
+
+        processed_data <- data[processed_columns]
+        processed_consumed_prop_data <- data[processed_consumed_columns]
+
+        amount_processed_consumed_kg <- tibble::as_tibble(processed_data * processed_consumed_prop_data)
+        colnames(amount_processed_consumed_kg) <- paste0(fp_amount_process_consumed_kg, "_", c(1:number_of_loops))
+
+        data <- add_column_after_specific_column(
+            data = data,
+            new_data = amount_processed_consumed_kg,
+            new_column_name = fp_amount_process_consumed_kg,
+            old_column_name = fp_prop_process_consumed_numeric,
+            loop_structure = T
+        )
+    }
+
 
 
 
@@ -701,153 +615,91 @@ ntfp_sold_and_consumed_calculation <- function(
 }
 
 
+# Loop through individual NTFPS
+for (fp_product in fp_products){
 
+    # Amount Harvested
+    tree_aid_df <- calculate_fp_harvest(
+        tree_aid_df=tree_aid_df,
+        fp_harvest_conversions=units_and_conversions$fp_amount_to_kg,
+        name_column=fp_product$fp_name,
+        amount_column=fp_product$amount,
+        unit_column=fp_product$amount_units
+    )
 
-# Run end calculations for eaten and sold for each product
-# fruit
-tree_aid_df <- ntfp_sold_and_consumed_calculation(
+    # Numeric proportions sold
+    tree_aid_df <- fp_proportions_all(
+        tree_aid_df=tree_aid_df,
+        use="sell",
+        use_column=fp_product$use_column,
+        prop_column=fp_product$sold_prop_column,
+        new_column_name=paste0(fp_product$base_name,"_sold_prop_numeric")
+    )
 
-    data=tree_aid_df,
-    fp_harvest_kg="fruit_amount_kg",
+    # Numeric proportions consumed
+    tree_aid_df <- fp_proportions_all(
+        tree_aid_df=tree_aid_df,
+        use="eat",
+        use_column=fp_product$use_column,
+        prop_column=fp_product$consumed_column,
+        new_column_name=paste0(fp_product$base_name,"_eaten_prop_numeric")
+    )
 
-    fp_prop_sold_numeric="fruit_sold_prop_numeric",
-    fp_amount_sold_kg="fruit_amount_sold_kg",
+    # Numeric proportions sold
+    tree_aid_df <- fp_proportions_all(
+        tree_aid_df=tree_aid_df,
+        use="process",
+        use_column=fp_product$use_column,
+        prop_column=fp_product$processed_column,
+        new_column_name=paste0(fp_product$base_name,"_process_prop_numeric")
+    )
 
-    fp_prop_consumed_numeric="fruit_eaten_prop_numeric",
-    fp_amount_consumed_kg="fruit_amount_eaten_kg",
-
-
-
-    fp_props_process_numeric="fruit_process_prop_numeric",
-
-    fp_props_process_sold_numeric="fruit_process_sold_prop_numeric",
-    fp_amount_process_sold_kg="fruit_amount_process_sold_kg",
-
-    fp_prop_process_consumed_numeric="fruit_process_eaten_prop_numeric",
-    fp_amount_process_consumed_kg="fruit_amount_process_eaten_kg"
-
-)
-
-# nut
-tree_aid_df <- ntfp_sold_and_consumed_calculation(
-
-  data=tree_aid_df,
-  fp_harvest_kg="nut_amount_kg",
-
-  fp_prop_sold_numeric="nut_sold_prop_numeric",
-  fp_amount_sold_kg="nut_amount_sold_kg",
-
-  fp_prop_consumed_numeric="nut_eaten_prop_numeric",
-  fp_amount_consumed_kg="nut_amount_eaten_kg",
-
-
-
-  fp_props_process_numeric="nut_process_prop_numeric",
-
-  fp_props_process_sold_numeric="nut_process_sold_prop_numeric",
-  fp_amount_process_sold_kg="nut_amount_process_sold_kg",
-
-  fp_prop_process_consumed_numeric="nut_process_eaten_prop_numeric",
-  fp_amount_process_consumed_kg="nut_amount_process_eaten_kg"
-
-)
-
-# leaves
-tree_aid_df <- ntfp_sold_and_consumed_calculation(
-
-  data=tree_aid_df,
-  fp_harvest_kg="leaves_amount_kg",
-
-  fp_prop_sold_numeric="leaves_sold_prop_numeric",
-  fp_amount_sold_kg="leaves_amount_sold_kg",
-
-  fp_prop_consumed_numeric="leaves_consumed_prop_numeric",
-  fp_amount_consumed_kg="leaves_amount_consumed_kg",
+    # Numeric proportions processed and eaten
+    tree_aid_df <- fp_proportions_all(
+        tree_aid_df=tree_aid_df,
+        use="process",
+        use_column=fp_product$use_column,
+        prop_column=fp_product$processed_column,
+        new_column_name=paste0(fp_product$base_name,"_process_eaten_prop_numeric")
+    )
 
 
 
-  fp_props_process_numeric="leaves_process_prop_numeric",
-
-  fp_props_process_sold_numeric="leaves_process_sold_prop_numeric",
-  fp_amount_process_sold_kg="leaves_amount_process_sold_kg",
-
-  fp_prop_process_consumed_numeric="leaves_process_consumed_prop_numeric",
-  fp_amount_process_consumed_kg="leaves_amount_process_consumed_kg"
-
-)
-# LEAVES NOT WORKING, NEED TO TROUBLESHOOT, problem with processed consumed?
-
-# bark
-tree_aid_df <- ntfp_sold_and_consumed_calculation(
-
-  data=tree_aid_df,
-  fp_harvest_kg="bark_amount_kg",
-
-  fp_prop_sold_numeric="bark_sold_prop_numeric",
-  fp_amount_sold_kg="bark_amount_sold_kg",
-
-  fp_prop_consumed_numeric="bark_eaten_prop_numeric",
-  fp_amount_consumed_kg="bark_amount_eaten_kg",
+    # Numeric proportions processed and sold
+    tree_aid_df <- fp_proportions_all(
+        tree_aid_df=tree_aid_df,
+        use="process",
+        use_column=fp_product$use_column,
+        prop_column=fp_product$processed_sold_column,
+        new_column_name=paste0(fp_product$base_name,"_process_sold_prop_numeric")
+    )
 
 
+    # Calculating all amounts sold, consumed, processed, processed and eaten, processed and sold
+    tree_aid_df <- ntfp_sold_and_consumed_calculation(
 
-  fp_props_process_numeric="bark_process_prop_numeric",
+        data=tree_aid_df,
+        fp_harvest_kg=paste0(fp_product$amount,"_kg"),
 
-  fp_props_process_sold_numeric="bark_process_sold_prop_numeric",
-  fp_amount_process_sold_kg="bark_amount_process_sold_kg",
+        fp_prop_sold_numeric=paste0(fp_product$base_name,"_sold_prop_numeric"),
+        fp_amount_sold_kg=paste0(fp_product$amount,"_sold_kg"),
 
-  fp_prop_process_consumed_numeric="bark_process_eaten_prop_numeric",
-  fp_amount_process_consumed_kg="bark_amount_process_eaten_kg"
+        fp_prop_consumed_numeric=paste0(fp_product$base_name,"_eaten_prop_numeric"),
+        fp_amount_consumed_kg=paste0(fp_product$amount,"_eaten_kg"),
 
-)
+        fp_props_process_numeric=paste0(fp_product$base_name,"_process_prop_numeric"),
+        fp_amount_process_kg=paste0(fp_product$amount,"_processed_kg"),
 
-# roots
-tree_aid_df <- ntfp_sold_and_consumed_calculation(
+        fp_props_process_sold_numeric=paste0(fp_product$base_name,"_process_sold_prop_numeric"),
+        fp_amount_process_sold_kg=paste0(fp_product$amount,"_process_sold_kg"),
 
-  data=tree_aid_df,
-  fp_harvest_kg="roots_amount_kg",
+        fp_prop_process_consumed_numeric=paste0(fp_product$base_name,"_process_eaten_prop_numeric"),
+        fp_amount_process_consumed_kg=paste0(fp_product$amount,"_process_eaten_kg")
 
-  fp_prop_sold_numeric="roots_sold_prop_numeric",
-  fp_amount_sold_kg="roots_amount_sold_kg",
+    )
 
-  fp_prop_consumed_numeric="roots_eaten_prop_numeric",
-  fp_amount_consumed_kg="roots_amount_eaten_kg",
+}
 
-
-
-  fp_props_process_numeric="roots_process_prop_numeric",
-
-  fp_props_process_sold_numeric="roots_process_sold_prop_numeric",
-  fp_amount_process_sold_kg="roots_amount_process_sold_kg",
-
-  fp_prop_process_consumed_numeric="roots_process_eaten_prop_numeric",
-  fp_amount_process_consumed_kg="roots_amount_process_eaten_kg"
-
-)
-
-# gum
-tree_aid_df <- ntfp_sold_and_consumed_calculation(
-
-  data=tree_aid_df,
-  fp_harvest_kg="gum_amount_kg",
-
-  fp_prop_sold_numeric="gum_sold_prop_numeric",
-  fp_amount_sold_kg="gum_amount_sold_kg",
-
-  fp_prop_consumed_numeric="gum_eaten_prop_numeric",
-  fp_amount_consumed_kg="gum_amount_eaten_kg",
-
-
-
-  fp_props_process_numeric="gum_process_prop_numeric",
-
-  fp_props_process_sold_numeric="gum_process_sold_prop_numeric",
-  fp_amount_process_sold_kg="gum_amount_process_sold_kg",
-
-  fp_prop_process_consumed_numeric="gum_process_eaten_prop_numeric",
-  fp_amount_process_consumed_kg="gum_amount_process_eaten_kg"
-
-)
 
 
 
@@ -861,7 +713,7 @@ fp_income_calculations <- function(data,
                                    fp_sold_income_column,
                                    new_fp_sold_income,
                                    product_type # gemma added, , "fruit_price"
-                                   ) {
+) {
 
     number_of_loops <- find_number_of_loops(data, name_column = "fp_name")
 
@@ -880,7 +732,7 @@ fp_income_calculations <- function(data,
 
     fp_sold_units_data <- data[fp_sold_unit_columns]
     fp_sold_units_numeric <- convert_units(unit_data = fp_sold_units_data,
-                                                units_conversions=unit_conv_tibble
+                                           units_conversions=unit_conv_tibble
     )
 
     fp_sold_amount <- data[fp_sold_columns]
@@ -943,53 +795,53 @@ tree_aid_df <- fp_income_calculations(
 )
 
 tree_aid_df <- fp_income_calculations(
-  data = tree_aid_df,
-  fp_sold_kg_per_year_column = "nut_amount_sold_kg",
-  fp_sold_units_column = "nut_sold_frequency",
-  fp_sold_income_column = "nut_sold_income",
-  new_fp_sold_income = "nut_sold_income_per_year",
-  unit_conv_tibble = fp_amount_conversions,
-  product_type = "nut_price"
+    data = tree_aid_df,
+    fp_sold_kg_per_year_column = "nut_amount_sold_kg",
+    fp_sold_units_column = "nut_sold_frequency",
+    fp_sold_income_column = "nut_sold_income",
+    new_fp_sold_income = "nut_sold_income_per_year",
+    unit_conv_tibble = fp_amount_conversions,
+    product_type = "nut_price"
 )
 
 tree_aid_df <- fp_income_calculations(
-  data = tree_aid_df,
-  fp_sold_kg_per_year_column = "leaves_amount_sold_kg",
-  fp_sold_units_column = "leaves_sold_frequency",
-  fp_sold_income_column = "leaves_sold_income",
-  new_fp_sold_income = "leaves_sold_income_per_year",
-  unit_conv_tibble = fp_amount_conversions,
-  product_type = "leaves_price"
+    data = tree_aid_df,
+    fp_sold_kg_per_year_column = "leaves_amount_sold_kg",
+    fp_sold_units_column = "leaves_sold_frequency",
+    fp_sold_income_column = "leaves_sold_income",
+    new_fp_sold_income = "leaves_sold_income_per_year",
+    unit_conv_tibble = fp_amount_conversions,
+    product_type = "leaves_price"
 )
 
 tree_aid_df <- fp_income_calculations(
-  data = tree_aid_df,
-  fp_sold_kg_per_year_column = "bark_amount_sold_kg",
-  fp_sold_units_column = "bark_sold_frequency",
-  fp_sold_income_column = "bark_sold_income",
-  new_fp_sold_income = "bark_sold_income_per_year",
-  unit_conv_tibble = fp_amount_conversions,
-  product_type = "bark_price"
+    data = tree_aid_df,
+    fp_sold_kg_per_year_column = "bark_amount_sold_kg",
+    fp_sold_units_column = "bark_sold_frequency",
+    fp_sold_income_column = "bark_sold_income",
+    new_fp_sold_income = "bark_sold_income_per_year",
+    unit_conv_tibble = fp_amount_conversions,
+    product_type = "bark_price"
 )
 
 tree_aid_df <- fp_income_calculations(
-  data = tree_aid_df,
-  fp_sold_kg_per_year_column = "roots_amount_sold_kg",
-  fp_sold_units_column = "roots_sold_frequency",
-  fp_sold_income_column = "roots_sold_income",
-  new_fp_sold_income = "roots_sold_income_per_year",
-  unit_conv_tibble = fp_amount_conversions,
-  product_type = "roots_price"
+    data = tree_aid_df,
+    fp_sold_kg_per_year_column = "roots_amount_sold_kg",
+    fp_sold_units_column = "roots_sold_frequency",
+    fp_sold_income_column = "roots_sold_income",
+    new_fp_sold_income = "roots_sold_income_per_year",
+    unit_conv_tibble = fp_amount_conversions,
+    product_type = "roots_price"
 )
 
 tree_aid_df <- fp_income_calculations(
-  data = tree_aid_df,
-  fp_sold_kg_per_year_column = "gum_amount_sold_kg",
-  fp_sold_units_column = "gum_sold_frequency",
-  fp_sold_income_column = "gum_sold_income_per_freq",
-  new_fp_sold_income = "gum_sold_income_per_year",
-  unit_conv_tibble = fp_amount_conversions,
-  product_type = "gum_price"
+    data = tree_aid_df,
+    fp_sold_kg_per_year_column = "gum_amount_sold_kg",
+    fp_sold_units_column = "gum_sold_frequency",
+    fp_sold_income_column = "gum_sold_income_per_freq",
+    new_fp_sold_income = "gum_sold_income_per_year",
+    unit_conv_tibble = fp_amount_conversions,
+    product_type = "gum_price"
 )
 
 # # List all income columns
@@ -1006,12 +858,12 @@ tree_aid_df <- fp_income_calculations(
 # List all income columns
 
 fp_income_columns <- c("fruit_sold_income_per_year",
-                         "nut_sold_income_per_year",
-                         "leaves_sold_income_per_year",
-                         "bark_sold_income_per_year",
-                         "roots_sold_income_per_year",
-                         "gum_sold_income_per_year",
-                         "shea_sold_income_year")
+                       "nut_sold_income_per_year",
+                       "leaves_sold_income_per_year",
+                       "bark_sold_income_per_year",
+                       "roots_sold_income_per_year",
+                       "gum_sold_income_per_year",
+                       "shea_sold_income_year")
 
 missing_columns <- check_columns_in_data(tree_aid_df,
                                          loop_columns = fp_income_columns,
@@ -1020,7 +872,7 @@ missing_columns <- check_columns_in_data(tree_aid_df,
 fp_income_columns <- fp_income_columns[fp_income_columns%in%missing_columns==F]
 
 fp_income_columns <- lapply(fp_income_columns, function(x){
-  paste0(x,"_", c(1:number_of_fp_loops))
+    paste0(x,"_", c(1:number_of_fp_loops))
 }) %>% unlist()
 
 

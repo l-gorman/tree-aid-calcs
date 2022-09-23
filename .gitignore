@@ -1,0 +1,12 @@
+livestock_data/
+indicator_data/
+extra_outputs/
+crop_data/
+conversions_stage_2/
+conversions_stage_1/
+raw-data/
+processed_data/
+preprocessed_data.csv
+off_farm_data/
+.original_stage_1_conversions/
+.original_stage_2_conversions/

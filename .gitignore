@@ -4,7 +4,7 @@ extra_outputs/
 crop_data/
 conversions_stage_2/
 conversions_stage_1/
-raw-data/
+
 processed_data/
 preprocessed_data.csv
 off_farm_data/

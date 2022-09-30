@@ -19,7 +19,7 @@ library(rhomis)
 
 # Use these file paths to load your preprocessed data
 base_path <- "./inst/projects/tree-aid-example/rhomis-2/" # Leo
-data_path <- "raw-data/raw-data.csv"
+data_path <- "inst/projects/tree-aid-example/rhomis-2/preprocessed_data.csv"
 
 # base_path <- "RHoMIS/package/"                            # Gemma
 # data_path <- "dummy_cleaned_lower_case.csv"
@@ -35,7 +35,7 @@ units_and_conversions <- extract_units_and_conversions_csv(
 
 tree_aid_df <- load_rhomis_csv(
 
-    file_path = paste0(base_path,data_path),
+    file_path = paste0(data_path),
     id_type = "string",
     proj_id = "tree-aid",
     form_id = "gh6"
@@ -615,6 +615,89 @@ ntfp_sold_and_consumed_calculation <- function(
 }
 
 
+# (6) INCOME
+
+# Create NTFP income calculation function
+fp_income_calculations <- function(data,
+                                   unit_conv_tibble = NULL,
+                                   fp_sold_kg_per_year_column,
+                                   fp_sold_units_column, # a column to be created
+                                   fp_sold_income_column,
+                                   new_fp_sold_income,
+                                   new_price_column
+) {
+
+
+
+    number_of_loops <- find_number_of_loops(data, name_column = "fp_name")
+
+    fp_sold_columns <- paste0(fp_sold_kg_per_year_column, "_", c(1:number_of_loops)) #fruit_amount_sold_kg
+    fp_sold_unit_columns <- paste0(fp_sold_units_column, "_", c(1:number_of_loops)) #is this frequency column? (e.g. 'year') #fruit_sold_frequency_1
+    fp_sold_income_columns <- paste0(fp_sold_income_column, "_", c(1:number_of_loops)) #fruit_sold_income_1
+
+    if (all(fp_sold_columns %in% colnames(data)) == F) {
+        warning(paste0("Have not calculated the amounts sold in kg. Calculate amounts sold before calculating income"))
+        return(tree_aid_df)
+    }
+    if (all(fp_sold_unit_columns %in% colnames(data)) == F) {
+        warning(paste0("Have not converted the non-timber forest product price quantity units yet. Convert these units before calculating incomes sold"))
+        return(tree_aid_df)
+
+    }
+
+
+
+    fp_sold_units_data <- data[fp_sold_unit_columns]
+    fp_sold_units_numeric <- convert_units(unit_data = fp_sold_units_data,
+                                           units_conversions=unit_conv_tibble
+    )
+
+    fp_sold_amount <- data[fp_sold_columns]
+    fp_sold_income <- data[fp_sold_income_columns]
+
+
+    # Multiplying values which do not have "total_income_per_year_unit
+    fp_sold_income_per_year <- fp_sold_income %>% dplyr::mutate_all(as.numeric)
+
+    fp_sold_income_per_year <- fp_sold_income_per_year * fp_sold_units_numeric
+
+    fp_sold_income_per_year[fp_sold_amount==0] <- 0
+
+
+    colnames(fp_sold_income_per_year) <- paste0(new_fp_sold_income, "_", c(1:number_of_loops))
+    data <- add_column_after_specific_column(
+        data = data,
+        new_data = fp_sold_income_per_year,
+        new_column_name = new_fp_sold_income,
+        old_column_name = fp_sold_income_column,
+        loop_structure = T
+    )
+
+    fp_price <- fp_sold_income_per_year / fp_sold_amount
+    colnames(fp_price) <- paste0(new_price_column, "_", c(1:number_of_loops))
+
+    data <- add_column_after_specific_column(
+        data = data,
+        new_data = fp_price,
+        new_column_name = new_price_column,
+        old_column_name = new_fp_sold_income,
+        loop_structure = T
+    )
+
+    return(data)
+}
+
+
+units_and_conversions <- extract_units_and_conversions_csv(
+    base_path = "inst/projects/tree-aid-example/rhomis-2/",
+    file_path="inst/projects/tree-aid-example/rhomis-2/preprocessed_data.csv",
+    id_type = "string",
+    proj_id = "tree-aid",
+    form_id = "gh6")
+
+
+
+
 # Loop through individual NTFPS
 for (fp_product in fp_products){
 
@@ -698,189 +781,20 @@ for (fp_product in fp_products){
 
     )
 
+    tree_aid_df <- fp_income_calculations(
+        data=tree_aid_df,
+        unit_conv_tibble = units_and_conversions$fp_income_per_freq_to_lcu_per_year,
+        fp_sold_kg_per_year_column=paste0(fp_product$amount,"_sold_kg"),
+        fp_sold_units_column=fp_product$income_frequency, # a column to be created
+        fp_sold_income_column=fp_product$income_column,
+        new_fp_sold_income=paste0(fp_product$base_name,"_sold_income_per_year"),
+        new_price_column=paste0(fp_product$base_name,"_price_per_kg")
+    )
+
+
+
+
 }
 
 
 
-
-# (6) INCOME
-
-# Create NTFP income calculation function
-fp_income_calculations <- function(data,
-                                   unit_conv_tibble = NULL,
-                                   fp_sold_kg_per_year_column,
-                                   fp_sold_units_column, # a column to be created
-                                   fp_sold_income_column,
-                                   new_fp_sold_income,
-                                   product_type # gemma added, , "fruit_price"
-) {
-
-    number_of_loops <- find_number_of_loops(data, name_column = "fp_name")
-
-    fp_sold_columns <- paste0(fp_sold_kg_per_year_column, "_", c(1:number_of_loops)) #fruit_amount_sold_kg
-    fp_sold_unit_columns <- paste0(fp_sold_units_column, "_", c(1:number_of_loops)) #is this frequency column? (e.g. 'year') #fruit_sold_frequency_1
-    fp_sold_income_columns <- paste0(fp_sold_income_column, "_", c(1:number_of_loops)) #fruit_sold_income_1
-
-    if (all(fp_sold_columns %in% colnames(data)) == F) {
-        stop("Have not calculated the amounts sold in kg. Calculate amounts sold before calculating income")
-    }
-    if (all(fp_sold_unit_columns %in% colnames(data)) == F) {
-        stop("Have not converted the non-timber forest product price quantity units yet. Convert these units before calculating incomes sold")
-    }
-
-
-
-    fp_sold_units_data <- data[fp_sold_unit_columns]
-    fp_sold_units_numeric <- convert_units(unit_data = fp_sold_units_data,
-                                           units_conversions=unit_conv_tibble
-    )
-
-    fp_sold_amount <- data[fp_sold_columns]
-    fp_sold_income <- data[fp_sold_income_columns]
-
-
-
-
-    # Multiplying values which do not have "total_income_per_year_unit
-    fp_sold_income_per_year <- fp_sold_income %>% dplyr::mutate_all(as.numeric)
-
-    fp_sold_income_per_year <- fp_sold_income_per_year * fp_sold_units_numeric
-
-    fp_sold_income_per_year[fp_sold_amount==0] <- 0
-
-
-    colnames(fp_sold_income_per_year) <- paste0(new_fp_sold_income, "_", c(1:number_of_loops))
-    data <- add_column_after_specific_column(
-        data = data,
-        new_data = fp_sold_income_per_year,
-        new_column_name = new_fp_sold_income,
-        old_column_name = fp_sold_income_column,
-        loop_structure = T
-    )
-
-    fp_price <- fp_sold_income_per_year / fp_sold_amount
-    colnames(fp_price) <- paste0(product_type, "_", c(1:number_of_loops))
-
-    data <- add_column_after_specific_column(
-        data = data,
-        new_data = fp_price,
-        new_column_name = product_type,
-        old_column_name = new_fp_sold_income,
-        loop_structure = T
-    )
-
-    return(data)
-}
-
-
-
-fp_amount_conversions <- tibble::as_tibble(
-    list(
-        survey_value=c("day", "week", "month","year"),
-        conversion=c(365,52, 12, 365)
-    )
-)
-
-
-
-# Conducting the calculation
-tree_aid_df <- fp_income_calculations(
-    data = tree_aid_df,
-    fp_sold_kg_per_year_column = "fruit_amount_sold_kg",
-    fp_sold_units_column = "fruit_sold_frequency",
-    fp_sold_income_column = "fruit_sold_income",
-    new_fp_sold_income = "fruit_sold_income_per_year",
-    unit_conv_tibble = fp_amount_conversions,
-    product_type = "fruit_price"
-)
-
-tree_aid_df <- fp_income_calculations(
-    data = tree_aid_df,
-    fp_sold_kg_per_year_column = "nut_amount_sold_kg",
-    fp_sold_units_column = "nut_sold_frequency",
-    fp_sold_income_column = "nut_sold_income",
-    new_fp_sold_income = "nut_sold_income_per_year",
-    unit_conv_tibble = fp_amount_conversions,
-    product_type = "nut_price"
-)
-
-tree_aid_df <- fp_income_calculations(
-    data = tree_aid_df,
-    fp_sold_kg_per_year_column = "leaves_amount_sold_kg",
-    fp_sold_units_column = "leaves_sold_frequency",
-    fp_sold_income_column = "leaves_sold_income",
-    new_fp_sold_income = "leaves_sold_income_per_year",
-    unit_conv_tibble = fp_amount_conversions,
-    product_type = "leaves_price"
-)
-
-tree_aid_df <- fp_income_calculations(
-    data = tree_aid_df,
-    fp_sold_kg_per_year_column = "bark_amount_sold_kg",
-    fp_sold_units_column = "bark_sold_frequency",
-    fp_sold_income_column = "bark_sold_income",
-    new_fp_sold_income = "bark_sold_income_per_year",
-    unit_conv_tibble = fp_amount_conversions,
-    product_type = "bark_price"
-)
-
-tree_aid_df <- fp_income_calculations(
-    data = tree_aid_df,
-    fp_sold_kg_per_year_column = "roots_amount_sold_kg",
-    fp_sold_units_column = "roots_sold_frequency",
-    fp_sold_income_column = "roots_sold_income",
-    new_fp_sold_income = "roots_sold_income_per_year",
-    unit_conv_tibble = fp_amount_conversions,
-    product_type = "roots_price"
-)
-
-tree_aid_df <- fp_income_calculations(
-    data = tree_aid_df,
-    fp_sold_kg_per_year_column = "gum_amount_sold_kg",
-    fp_sold_units_column = "gum_sold_frequency",
-    fp_sold_income_column = "gum_sold_income_per_freq",
-    new_fp_sold_income = "gum_sold_income_per_year",
-    unit_conv_tibble = fp_amount_conversions,
-    product_type = "gum_price"
-)
-
-# # List all income columns
-# fp_income_columns <- c(paste0("fruit_sold_income_per_year","_", c(1:number_of_fp_loops)),
-#                        paste0("nut_sold_income_per_year","_", c(1:number_of_fp_loops)),
-#                        paste0("leaves_sold_income_per_year","_", c(1:number_of_fp_loops)),
-#                        paste0("bark_sold_income_per_year","_", c(1:number_of_fp_loops)),
-#                        paste0("roots_sold_income_per_year","_", c(1:number_of_fp_loops)),
-#                        paste0("gum_sold_income_per_year","_", c(1:number_of_fp_loops))) # is there a better way to append to a list?
-#
-# ntfp_total_income_sum <- rowSums(fp_income_columns)
-# tree_aid_df$ntfp_income <-
-
-# List all income columns
-
-fp_income_columns <- c("fruit_sold_income_per_year",
-                       "nut_sold_income_per_year",
-                       "leaves_sold_income_per_year",
-                       "bark_sold_income_per_year",
-                       "roots_sold_income_per_year",
-                       "gum_sold_income_per_year",
-                       "shea_sold_income_year")
-
-missing_columns <- check_columns_in_data(tree_aid_df,
-                                         loop_columns = fp_income_columns,
-                                         warning_message = "Missing these columns, these fps will not be considered in incomes")
-
-fp_income_columns <- fp_income_columns[fp_income_columns%in%missing_columns==F]
-
-fp_income_columns <- lapply(fp_income_columns, function(x){
-    paste0(x,"_", c(1:number_of_fp_loops))
-}) %>% unlist()
-
-
-ntfp_total_income_sum <- rowSums(tree_aid_df[fp_income_columns], na.rm = T)
-
-
-
-#                                  TO DO
-# 3) SHEA BUTTER
-# 4) HONEY
-# 5) NEXT COLUMNS E.G. CALORIES

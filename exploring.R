@@ -688,6 +688,61 @@ fp_income_calculations <- function(data,
 }
 
 
+value_or_calorie_calculations_item_consumed <- function(data,
+                                                        name_column,
+                                                        amount_consumed_column,
+                                                        conversion_tibble,
+                                                        price_column_name,
+                                                        converted_column_name) {
+    missing_columns <- check_columns_in_data(data, loop_columns = c(name_column, amount_consumed_column), individual_columns = "id_rhomis_dataset")
+    if (length(missing_columns) == 0) {
+        number_of_loops <- find_number_of_loops(data, amount_consumed_column)
+
+        names_columns <- paste0(name_column, "_", c(1:number_of_loops))
+        prices_columns <- paste0(price_column_name, "_", c(1:number_of_loops))
+        amounts_columns <- paste0(amount_consumed_column, "_", c(1:number_of_loops))
+        new_columns <- paste0(converted_column_name, "_", c(1:number_of_loops))
+
+        names_df <- data[names_columns]
+        amounts_df <- data[amounts_columns]
+        amounts_df <- amounts_df  %>% dplyr::mutate_all(as.numeric)
+
+
+
+        mean_prices_df <- switch_units(names_df, unit_tibble = conversion_tibble, id_vector = data[["id_rhomis_dataset"]])
+        colnames(mean_prices_df) <- prices_columns
+
+        converted_tibble <- mean_prices_df * amounts_df
+        colnames(converted_tibble) <- new_columns
+
+
+
+        if (all(prices_columns %in% colnames(data) == F)) {
+            data <- add_column_after_specific_column(data,
+                                                     new_data = mean_prices_df,
+                                                     new_column_name = price_column_name,
+                                                     old_column_name = amount_consumed_column,
+                                                     loop_structure = T
+            )
+        }
+
+        data <- add_column_after_specific_column(data,
+                                                 new_data = converted_tibble,
+                                                 new_column_name = converted_column_name,
+                                                 old_column_name = price_column_name,
+                                                 loop_structure = T
+        )
+    }
+
+    if (length(missing_columns) > 0) {
+        warning(paste0("Cannot calculate value of ", amount_consumed_column, ". Missing the following columns: ", missing_columns))
+    }
+
+    return(data)
+}
+
+
+
 units_and_conversions <- extract_units_and_conversions_csv(
     base_path = "inst/projects/tree-aid-example/rhomis-2/",
     file_path="inst/projects/tree-aid-example/rhomis-2/preprocessed_data.csv",
@@ -696,6 +751,56 @@ units_and_conversions <- extract_units_and_conversions_csv(
     form_id = "gh6")
 
 
+fp_calories <- tibble::as_tibble(list(
+    "cashew" = 10,
+    "shea" = 100,
+    "dawadawa" = 50,
+    "baobab" = 200,
+    "tamarind" = 450,
+    "moringa" = 50,
+    "gumvine" = 1000
+)) %>% tidyr::pivot_longer(tidyr::everything(), names_to = "survey_value", values_to = "conversion")
+fp_calories <- make_per_project_conversion_tibble(proj_id_vector = tree_aid_df$id_rhomis_dataset,
+                                                  unit_conv_tibble = fp_calories)
+
+
+fp_process_calories <- tibble::as_tibble(list(
+    "cashew" = 500,
+    "shea" = 20,
+    "dawadawa" = 100,
+    "baobab" = 2000,
+    "tamarind" = 45,
+    "moringa" = 35,
+    "gumvine" = 150
+)) %>% tidyr::pivot_longer(tidyr::everything(), names_to = "survey_value", values_to = "conversion")
+fp_process_calories <- make_per_project_conversion_tibble(proj_id_vector = tree_aid_df$id_rhomis_dataset,
+                                                          unit_conv_tibble = fp_process_calories)
+
+
+fp_price_lcu <- tibble::as_tibble(list(
+    "cashew" = 1,
+    "shea" = 2,
+    "dawadawa" = 3,
+    "baobab" = 4,
+    "tamarind" = 5,
+    "moringa" = 6,
+    "gumvine" = 7
+)) %>% tidyr::pivot_longer(tidyr::everything(), names_to = "survey_value", values_to = "conversion")
+fp_price_lcu <- make_per_project_conversion_tibble(proj_id_vector = tree_aid_df$id_rhomis_dataset,
+                                                   unit_conv_tibble = fp_price_lcu)
+
+
+fp_process_price_lcu <- tibble::as_tibble(list(
+    "cashew" = 7,
+    "shea" = 6,
+    "dawadawa" = 5,
+    "baobab" = 4,
+    "tamarind" = 3,
+    "moringa" = 2,
+    "gumvine" = 1
+)) %>% tidyr::pivot_longer(tidyr::everything(), names_to = "survey_value", values_to = "conversion")
+fp_process_price_lcu <- make_per_project_conversion_tibble(proj_id_vector = tree_aid_df$id_rhomis_dataset,
+                                                           unit_conv_tibble = fp_process_price_lcu)
 
 
 # Loop through individual NTFPS
@@ -791,10 +896,91 @@ for (fp_product in fp_products){
         new_price_column=paste0(fp_product$base_name,"_price_per_kg")
     )
 
+    tree_aid_df <- fp_income_calculations(
+        data=tree_aid_df,
+        unit_conv_tibble = units_and_conversions$fp_income_per_freq_to_lcu_per_year,
+        fp_sold_kg_per_year_column=paste0(fp_product$amount,"_process_sold_kg"),
+        fp_sold_units_column=fp_product$income_frequency, # a column to be created
+        fp_sold_income_column=fp_product$income_column,
+        new_fp_sold_income=paste0(fp_product$base_name,"_process_sold_income_per_year"),
+        new_price_column=paste0(fp_product$base_name,"_process_price_per_kg")
+    )
 
 
+    # Calories consumed
+    tree_aid_df <- value_or_calorie_calculations_item_consumed(
+        data = tree_aid_df,
+        name_column = "fp_name",
+        amount_consumed_column = paste0(fp_product$amount,"_eaten_kg"),
+        conversion_tibble = fp_calories,
+        price_column_name = paste0(paste0(fp_product$amount,"_calories_per_kg")),
+        converted_column_name = paste0(paste0(fp_product$amount,"_calories_consumed_per_year")))
+
+
+
+
+    # Processed Calories consumed
+    tree_aid_df <- value_or_calorie_calculations_item_consumed(
+        data = tree_aid_df,
+        name_column = "fp_name",
+        amount_consumed_column = paste0(fp_product$amount,"_process_eaten_kg"),
+        conversion_tibble = fp_process_calories,
+        price_column_name = paste0(paste0(fp_product$amount,"_process_calories_per_kg")),
+        converted_column_name = paste0(paste0(fp_product$amount,"_process_calories_consumed_per_year")))
+
+    # Value consumed
+    tree_aid_df <- value_or_calorie_calculations_item_consumed(
+        data = tree_aid_df,
+        name_column = "fp_name",
+        amount_consumed_column = paste0(fp_product$amount,"_eaten_kg"),
+        conversion_tibble = fp_price_lcu,
+        price_column_name = paste0(paste0(fp_product$amount,"_price_per_kg")),
+        converted_column_name = paste0(paste0(fp_product$amount,"_value_consumed_lcu_per_year")))
+
+
+
+
+
+    # Processed Value consumed
+    tree_aid_df <- value_or_calorie_calculations_item_consumed(
+        data = tree_aid_df,
+        name_column = "fp_name",
+        amount_consumed_column = paste0(fp_product$amount,"_process_eaten_kg"),
+        conversion_tibble = fp_process_price_lcu,
+        price_column_name = paste0(paste0(fp_product$amount,"_process_price_per_kg")),
+        converted_column_name = paste0(paste0(fp_product$amount,"_process_value_consumed_lcu_per_year")))
 
 }
+
+
+# Need to write out calorie and price conversions here
+
+
+
+
+
+
+# Calories and Value calculations -----------------------------------------
+
+
+
+
+
+
+# General function which calculates amount consumed * calorie (energy) value for any product
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
